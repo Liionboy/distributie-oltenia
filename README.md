@@ -1,6 +1,7 @@
 Distribuție Oltenia Integration - Walkthrough
 This document outlines the steps to install and configure the custom Home Assistant integration for Distribuție Oltenia.
 
+
 Installation
 Copy Files:
 
