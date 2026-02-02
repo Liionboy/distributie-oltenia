@@ -1,0 +1,22 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Connect to Distribuție Oltenia",
+                "description": "Enter your portal credentials. If automatic connection fails (404 error), provide the Recovery Token.",
+                "data": {
+                    "email": "Email",
+                    "password": "Password",
+                    "token": "Recovery Token (Long code starting with 'ey...') - Optional"
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "Authentication failed. Please check credentials or provide the Recovery Token.",
+            "unknown": "Unexpected error."
+        },
+        "abort": {
+            "already_configured": "Account is already configured"
+        }
+    }
+}
