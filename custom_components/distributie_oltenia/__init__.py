@@ -6,7 +6,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, CONF_EMAIL, CONF_PASSWORD, CONF_TOKEN
+from .const import DOMAIN, CONF_EMAIL, CONF_PASSWORD, CONF_TOKEN, CONF_POD
 from .deo import DEOPortal
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,10 +19,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     email = entry.data[CONF_EMAIL]
     password = entry.data[CONF_PASSWORD]
     token = entry.data.get(CONF_TOKEN)
+    pod = entry.data.get(CONF_POD)
 
-    portal = DEOPortal(email, password, token)
+    portal = DEOPortal(email, password, token, pod)
 
-    # Coordinator to poll data every hour (since it's not real-time)
+    # Coordinator to poll data every hour
     async def async_update_data():
         """Fetch data from API."""
         data = await hass.async_add_executor_job(portal.get_consumption_data)
@@ -41,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER,
         name=DOMAIN,
         update_method=async_update_data,
-        update_interval=timedelta(hours=6), # Portal data doesn't update that often
+        update_interval=timedelta(hours=6),
     )
 
     await coordinator.async_config_entry_first_refresh()

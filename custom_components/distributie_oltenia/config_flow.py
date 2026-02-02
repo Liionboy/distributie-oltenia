@@ -1,10 +1,8 @@
 import logging
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 
-from .const import DOMAIN, CONF_EMAIL, CONF_PASSWORD, CONF_TOKEN
+from .const import DOMAIN, CONF_EMAIL, CONF_PASSWORD, CONF_TOKEN, CONF_POD
 from .deo import DEOPortal
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,6 +11,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
+        vol.Optional(CONF_POD): str,
         vol.Optional(CONF_TOKEN): str,
     }
 )
@@ -39,7 +38,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                 else:
                     errors["base"] = "invalid_auth"
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
 
@@ -49,11 +48,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _validate_input(self, data):
         """Validate the user input allows us to connect."""
-        portal = DEOPortal(data[CONF_EMAIL], data[CONF_PASSWORD], data.get(CONF_TOKEN))
+        portal = DEOPortal(
+            data[CONF_EMAIL], 
+            data[CONF_PASSWORD], 
+            data.get(CONF_TOKEN),
+            data.get(CONF_POD)
+        )
         if not portal.login():
             return False
             
-        # If token is not provided, try to fetch it to ensure we can
-        # If it returns None, we might still proceed but warn? 
-        # For now, just login success is enough to create entry.
         return True

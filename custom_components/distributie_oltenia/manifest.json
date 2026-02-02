@@ -5,7 +5,7 @@
         "@adrianbrisca"
     ],
     "config_flow": true,
-    "documentation": "https://github.com/Liionboy/distributie-olteni",
+    "documentation": "https://github.com/adrianbrisca/ha-distributie-oltenia",
     "requirements": [
         "beautifulsoup4>=4.0.0",
         "requests>=2.0.0"
