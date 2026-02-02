@@ -126,6 +126,7 @@ class DEOPortal:
             data_match = re.search(r'(?:let|var)\s+data\s*=\s*(\[.*?\]);', r.text, re.DOTALL)
             if not data_match:
                 _LOGGER.error("Could not find consumption data in page source")
+                _LOGGER.debug(f"History page preview: {r.text[:2000]}")
                 return None
             
             raw_data = data_match.group(1)
