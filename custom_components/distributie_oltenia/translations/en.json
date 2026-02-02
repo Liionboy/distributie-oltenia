@@ -3,16 +3,17 @@
         "step": {
             "user": {
                 "title": "Connect to Distribuție Oltenia",
-                "description": "Enter your portal credentials. If automatic connection fails (404 error), provide the Recovery Token.",
+                "description": "Enter your portal credentials. Providing your POD is recommended for automatic data extraction.",
                 "data": {
                     "email": "Email",
                     "password": "Password",
-                    "token": "Recovery Token (Long code starting with 'ey...') - Optional"
+                    "pod": "POD Code (Recommended)",
+                    "token": "Secondary Token (Optional)"
                 }
             }
         },
         "error": {
-            "invalid_auth": "Authentication failed. Please check credentials or provide the Recovery Token.",
+            "invalid_auth": "Authentication failed. Check credentials or provide POD/Token.",
             "unknown": "Unexpected error."
         },
         "abort": {

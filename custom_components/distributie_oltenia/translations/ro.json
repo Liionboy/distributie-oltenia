@@ -1,0 +1,23 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Conectare la Distribuție Oltenia",
+                "description": "Introdu credentialele pentru portal. Recomandăm introducerea codului POD pentru o conectare stabilă.",
+                "data": {
+                    "email": "Email",
+                    "password": "Parolă",
+                    "pod": "Cod POD (Recomandat)",
+                    "token": "Token secundar (Opțional)"
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "Autentificare eșuată. Verifică datele sau introdu POD/Token-ul manual.",
+            "unknown": "Eroare neașteptată."
+        },
+        "abort": {
+            "already_configured": "Contul este deja configurat"
+        }
+    }
+}
