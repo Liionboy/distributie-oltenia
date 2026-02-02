@@ -1,0 +1,15 @@
+{
+    "domain": "distributie_oltenia",
+    "name": "Distribuție Oltenia",
+    "codeowners": [
+        "@adrianbrisca"
+    ],
+    "config_flow": true,
+    "documentation": "https://github.com/Liionboy/distributie-olteni",
+    "requirements": [
+        "beautifulsoup4>=4.0.0",
+        "requests>=2.0.0"
+    ],
+    "iot_class": "cloud_polling",
+    "version": "1.0.0"
+}
