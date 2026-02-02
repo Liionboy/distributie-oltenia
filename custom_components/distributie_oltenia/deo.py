@@ -110,6 +110,9 @@ class DEOPortal:
         try:
             # Use configured token if available, otherwise try to find it
             token = self.token
+            if token:
+                token = token.strip()
+            
             if not token:
                 token = self.get_token()
             
@@ -126,7 +129,7 @@ class DEOPortal:
             data_match = re.search(r'(?:let|var)\s+data\s*=\s*(\[.*?\]);', r.text, re.DOTALL)
             if not data_match:
                 _LOGGER.error("Could not find consumption data in page source")
-                _LOGGER.debug(f"History page preview: {r.text[:2000]}")
+                _LOGGER.error(f"History page preview: {r.text[:2000]}")
                 return None
             
             raw_data = data_match.group(1)
