@@ -50,7 +50,15 @@ class DEOSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self._register = reading_data.get("REGISTER")
         self._serial = reading_data.get("SERIAL")
-        self._desc = reading_data.get("REGISTER_DESC", self._register)
+        
+        # Improve names for common registers
+        raw_desc = reading_data.get("REGISTER_DESC", self._register)
+        if self._register == "1.8.0":
+            self._desc = "Energie Consumată"
+        elif self._register == "2.8.0":
+            self._desc = "Energie Injectată"
+        else:
+            self._desc = raw_desc
         
         # Use Serial + Register as unique ID
         self._attr_unique_id = f"{DOMAIN}_{self._serial}_{self._register}".replace(".", "_")
@@ -82,10 +90,14 @@ class DEOSensor(CoordinatorEntity, SensorEntity):
         """Return the state attributes."""
         data = self._find_my_data()
         if data:
+            val = self._parse_consumption(data.get("CONSUMPTION"))
+            # Use 'returned' for export register 2.8.0
+            consumption_key = "returned" if self._register == "2.8.0" else "consumption"
+            
             return {
                 "reading_date": self._parse_date(data.get("READING_DATE")),
                 "billing_constant": data.get("BILLING_CONSTANT"),
-                "consumption": self._parse_consumption(data.get("CONSUMPTION")),
+                consumption_key: val,
                 "register_code": self._register,
                 "meter_serial": self._serial,
                 "reading_type": data.get("READING_TYPE"),
@@ -130,8 +142,10 @@ class DEOSensor(CoordinatorEntity, SensorEntity):
             idx = data.get("MRINDEX")
             if idx:
                 try:
-                    return float(idx)
-                except ValueError:
+                    # Clean and parse numeric value
+                    cleaned = str(idx).replace('.', '').replace(',', '.') if isinstance(idx, str) and ',' in idx else idx
+                    return float(cleaned)
+                except (ValueError, TypeError):
                     return None
         return None
 
