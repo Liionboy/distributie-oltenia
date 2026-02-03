@@ -32,7 +32,7 @@ Integrare custom pentru Home Assistant care permite monitorizarea consumului de 
 1. Descarcă ultima versiune din [Releases](../../releases)
 2. Copiază folderul `custom_components/distributie_oltenia` în:
 
-   ```
+   ```bash
    /config/custom_components/distributie_oltenia/
    ```
 
@@ -55,7 +55,7 @@ Integrare custom pentru Home Assistant care permite monitorizarea consumului de 
 
 1. **Accesează portalul** în browser:
 
-   ```
+   ```bash
    https://portal.distributieoltenia.ro
    ```
 
@@ -67,7 +67,7 @@ Integrare custom pentru Home Assistant care permite monitorizarea consumului de 
 
 4. **Copiază token-ul** din bara de adrese:
 
-   ```
+   ```bash
    https://portal.distributieoltenia.ro/pages/istoricIndecsi?token=eyJfX21ldGFk...
    ```
 
@@ -88,7 +88,7 @@ Integrare custom pentru Home Assistant care permite monitorizarea consumului de 
 3. Completează:
 
 | Câmp | Descriere | Obligatoriu |
-|------|-----------|:-----------:|
+| :--- | :--- | :---: |
 | Email | Email-ul de pe portal | ✅ |
 | Password | Parola de pe portal | ✅ |
 | POD | Codul POD (23 cifre) | ❌ |
@@ -101,7 +101,7 @@ Integrare custom pentru Home Assistant care permite monitorizarea consumului de 
 După configurare, vor fi disponibili următorii senzori:
 
 | Entitate | Descriere | Unitate |
-|----------|-----------|---------|
+| :--- | :--- | :--- |
 | `sensor.deo_energie_activa_XXXXX` | Index curent energie consumată | kWh |
 | `sensor.deo_productie_activa_XXXXX` | Energie produsă (prosumatori) | kWh |
 
@@ -158,6 +158,4 @@ Contribuțiile sunt binevenite! Deschide un [Issue](../../issues) sau trimite un
 
 ---
 
-<p align="center">
-  Made with ❤️ for the Home Assistant community
-</p>
+Made with ❤️ for the Home Assistant community
