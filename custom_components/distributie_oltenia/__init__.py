@@ -23,18 +23,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     portal = DEOPortal(email, password, token, pod)
 
-    # Coordinator to poll data every hour
+    # Coordinator to poll data
     async def async_update_data():
         """Fetch data from API."""
+        _LOGGER.warning("DEO Coordinator: Starting data refresh...")
         data = await hass.async_add_executor_job(portal.get_consumption_data)
         if not data:
              # Try re-login once if failed
+             _LOGGER.warning("DEO Coordinator: First attempt failed, retrying with re-login...")
              await hass.async_add_executor_job(portal.login)
              data = await hass.async_add_executor_job(portal.get_consumption_data)
         
         if not data:
+            _LOGGER.error("DEO Coordinator: Failed to fetch data after retry!")
             raise UpdateFailed("Failed to fetch consumption data")
         
+        _LOGGER.warning(f"DEO Coordinator: Successfully fetched {len(data)} records")
         return data
 
     coordinator = DataUpdateCoordinator(
@@ -42,7 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER,
         name=DOMAIN,
         update_method=async_update_data,
-        update_interval=timedelta(hours=6),
+        update_interval=timedelta(hours=1),  # Refresh every 1 hour
     )
 
     await coordinator.async_config_entry_first_refresh()
