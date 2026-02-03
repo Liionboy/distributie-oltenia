@@ -5,6 +5,7 @@
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1+-blue.svg)
 
 Integrare custom pentru Home Assistant care permite monitorizarea consumului de energie electrică prin portalul [Distribuție Oltenia](https://portal.distributieoltenia.ro).
+<img width="155" height="155" alt="logo" src="https://github.com/user-attachments/assets/3ea8f803-95dd-4fe9-8f69-f3c3e70d6db7" />
 
 ---
 
