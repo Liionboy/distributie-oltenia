@@ -102,11 +102,17 @@ După configurare, vor fi disponibili următorii senzori:
 
 | Entitate | Descriere | Unitate |
 |----------|-----------|---------|
-| `sensor.energie_activa` | Index curent energie consumată | kWh |
-| `sensor.productie_activa` | Energie produsă (prosumatori) | kWh |
-| `sensor.consum` | Consum ultima perioadă | kWh |
+| `sensor.deo_energie_activa_XXXXX` | Index curent energie consumată | kWh |
+| `sensor.deo_productie_activa_XXXXX` | Energie produsă (prosumatori) | kWh |
 
----
+> **Notă**: `XXXXX` = numărul de serie al contorului tău
+
+### Atribute senzori
+
+- `reading_date` - Data ultimei citiri
+- `consumption` - Consumul în perioada curentă (kWh)
+- `meter_serial` - Seria contorului
+- `reading_type` - Tipul citirii
 
 ## 🔧 Depanare
 
