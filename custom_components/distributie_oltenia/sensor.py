@@ -1,3 +1,6 @@
+import re
+from datetime import datetime
+
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorDeviceClass,
@@ -80,12 +83,36 @@ class DEOSensor(CoordinatorEntity, SensorEntity):
         data = self._find_my_data()
         if data:
             return {
-                "reading_date": data.get("READING_DATE"),
+                "reading_date": self._parse_date(data.get("READING_DATE")),
                 "billing_constant": data.get("BILLING_CONSTANT"),
-                "consumption_value": data.get("CONSUMPTION"), # The actual consumption in the period
-                "register_code": self._register
+                "consumption": self._parse_consumption(data.get("CONSUMPTION")),
+                "register_code": self._register,
+                "meter_serial": self._serial,
+                "reading_type": data.get("READING_TYPE"),
             }
         return {}
+    
+    def _parse_date(self, date_str):
+        """Parse /Date(timestamp)/ format to readable date."""
+        if not date_str:
+            return None
+        match = re.search(r'/Date\((\d+)\)/', str(date_str))
+        if match:
+            timestamp_ms = int(match.group(1))
+            dt = datetime.fromtimestamp(timestamp_ms / 1000)
+            return dt.strftime("%Y-%m-%d")
+        return date_str
+    
+    def _parse_consumption(self, consumption_str):
+        """Parse European format consumption to float (e.g., 1.218,001 -> 1218.001)."""
+        if not consumption_str:
+            return None
+        try:
+            # Remove thousand separators (.) and replace decimal comma with dot
+            cleaned = str(consumption_str).replace('.', '').replace(',', '.')
+            return float(cleaned)
+        except ValueError:
+            return consumption_str
 
     def _find_my_data(self):
         """Find the data dict correspondng to this sensor in the list."""
