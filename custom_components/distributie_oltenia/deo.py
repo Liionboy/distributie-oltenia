@@ -1,4 +1,5 @@
-import requests
+import aiohttp
+import asyncio
 import re
 import json
 import logging
@@ -7,185 +8,219 @@ from bs4 import BeautifulSoup
 
 _LOGGER = logging.getLogger(__name__)
 
+DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://portal.distributieoltenia.ro/",
+    "Accept-Language": "ro-RO,ro;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
+
+
+def parse_european_number(val):
+    """Parse European number format: 1.218,001 -> 1218.001"""
+    if not val:
+        return None
+    try:
+        return float(str(val).replace('.', '').replace(',', '.'))
+    except (ValueError, TypeError):
+        return val
+
+
 class DEOPortal:
-    """Interface for Distributie Oltenia Portal."""
+    """Interface for Distributie Oltenia Portal (async)."""
 
     def __init__(self, email, password, token=None, pod=None):
         self.email = email
         self.password = password
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://portal.distributieoltenia.ro/",
-            "Accept-Language": "ro-RO,ro;q=0.9,en-US;q=0.8,en;q=0.7",
-        })
         self.base_url = "https://portal.distributieoltenia.ro"
         self.logged_in = False
         self.token = token
         self.pod = pod
+        self._cookies = None
 
-    def login(self):
+    async def _get_session(self):
+        """Create an aiohttp session with stored cookies."""
+        jar = aiohttp.CookieJar()
+        if self._cookies:
+            jar.update_cookies(self._cookies)
+        return aiohttp.ClientSession(
+            headers=DEFAULT_HEADERS,
+            cookie_jar=jar,
+            timeout=REQUEST_TIMEOUT,
+        )
+
+    async def login(self):
         """Perform login using Keycloak/Laravel flow."""
         try:
-            login_url = f"{self.base_url}/loginuserkeycloak?user_type=end_client"
-            _LOGGER.warning(f"DEO: Starting login...")
-            r = self.session.get(login_url)
-            
-            if "keycloak" not in r.url and "auth.distributieoltenia" not in r.url:
-                _LOGGER.error(f"DEO: Login redirect failed. URL: {r.url}")
+            async with aiohttp.ClientSession(
+                headers=DEFAULT_HEADERS,
+                timeout=REQUEST_TIMEOUT,
+            ) as session:
+                login_url = f"{self.base_url}/loginuserkeycloak?user_type=end_client"
+                _LOGGER.debug("DEO: Starting login...")
+
+                async with session.get(login_url, allow_redirects=True) as r:
+                    final_url = str(r.url)
+                    if "keycloak" not in final_url and "auth.distributieoltenia" not in final_url:
+                        _LOGGER.error("DEO: Login redirect failed. URL: %s", final_url)
+                        return False
+
+                    text = await r.text()
+
+                soup = BeautifulSoup(text, "html.parser")
+                login_form = soup.find("form", id="kc-form-login")
+                if not login_form:
+                    _LOGGER.error("DEO: Could not find login form")
+                    return False
+
+                action_url = login_form.get("action")
+                payload = {
+                    "username": self.email,
+                    "password": self.password,
+                    "credentialId": "",
+                }
+
+                async with session.post(action_url, data=payload, allow_redirects=True) as r:
+                    text = await r.text()
+
+                if "roleForm" in text or "user_type" in text:
+                    _LOGGER.debug("DEO: Role selection required, navigating to /client...")
+                    async with session.get(f"{self.base_url}/client", allow_redirects=True) as r:
+                        text = await r.text()
+
+                is_authenticated = (
+                    any(m in text.lower() for m in ["checklogout", "deconectare", "utilizator:", "istoric"])
+                    or "dashboard" in str(r.url).lower()
+                )
+
+                if is_authenticated:
+                    self.logged_in = True
+                    # Store cookies for future requests
+                    self._cookies = {}
+                    for cookie in session.cookie_jar:
+                        self._cookies[cookie.key] = cookie.value
+                    _LOGGER.info("DEO: Login successful")
+                    return True
+
+                _LOGGER.error("DEO: Login failed at %s", r.url)
                 return False
 
-            soup = BeautifulSoup(r.text, "html.parser")
-            login_form = soup.find("form", id="kc-form-login")
-            if not login_form:
-                _LOGGER.error("DEO: Could not find login form")
-                return False
-
-            action_url = login_form.get("action")
-            payload = {
-                "username": self.email,
-                "password": self.password,
-                "credentialId": ""
-            }
-
-            r = self.session.post(action_url, data=payload, allow_redirects=True)
-            
-            if "roleForm" in r.text or "user_type" in r.text:
-                _LOGGER.warning("DEO: Role selection required, navigating to /client...")
-                r = self.session.get(f"{self.base_url}/client", allow_redirects=True)
-            
-            is_authenticated = any(m in r.text.lower() for m in ["checklogout", "deconectare", "utilizator:", "istoric"]) or "dashboard" in r.url.lower()
-
-            if is_authenticated:
-                self.logged_in = True
-                _LOGGER.warning("DEO: Login successful!")
-                return True
-            
-            _LOGGER.error(f"DEO: Login failed at {r.url}")
+        except aiohttp.ClientError as e:
+            _LOGGER.error("DEO: Login network error: %s", e)
             return False
-
+        except asyncio.TimeoutError:
+            _LOGGER.error("DEO: Login timed out")
+            return False
         except Exception as e:
-            _LOGGER.exception(f"DEO: Login exception: {e}")
+            _LOGGER.exception("DEO: Login exception: %s", e)
             return False
 
-    def get_token(self):
+    async def get_token(self):
         """Discover POD token. Real tokens are >50 chars."""
         MIN_TOKEN_LENGTH = 50
-        
-        pages = [
-            f"{self.base_url}/pages/consumption-location/end_client",
-        ]
-        
+        pages = [f"{self.base_url}/pages/consumption-location/end_client"]
         all_tokens_found = []
 
-        for page in pages:
-            _LOGGER.warning(f"DEO: Checking page: {page}")
-            try:
-                r = self.session.get(page)
-                _LOGGER.warning(f"DEO: Landed on: {r.url[:80]} (status {r.status_code})")
-                
-                # Log page size and snippet for debugging
-                _LOGGER.warning(f"DEO: Page size: {len(r.text)} chars")
-                
-                # Search ENTIRE HTML for token= pattern (not just <a> tags)
-                all_token_matches = re.findall(r'token=([^&\s"\'<>]{10,})', r.text)
-                _LOGGER.warning(f"DEO: Found {len(all_token_matches)} token patterns in HTML")
-                
-                for token in all_token_matches:
-                    all_tokens_found.append((len(token), token[:30]))
-                    if len(token) >= MIN_TOKEN_LENGTH:
-                        _LOGGER.warning(f"DEO: Found VALID token (len={len(token)})")
-                        return token
-                
-                # If no tokens found, log a snippet of the page to see what's there
-                if not all_token_matches:
-                    # Look for common patterns
-                    if "pod" in r.text.lower() or "POD" in r.text:
-                        _LOGGER.warning("DEO: Page contains 'POD' references")
-                    if "istoric" in r.text.lower():
-                        _LOGGER.warning("DEO: Page contains 'istoric' references")
-                    # Log a snippet
-                    snippet = r.text[0:500].replace('\n', ' ')
-                    _LOGGER.warning(f"DEO: HTML start: {snippet}")
-                    
-            except Exception as e:
-                _LOGGER.error(f"DEO: Failed to get {page}: {e}")
-                continue
-        
+        session = await self._get_session()
+        try:
+            for page in pages:
+                _LOGGER.debug("DEO: Checking page: %s", page)
+                try:
+                    async with session.get(page) as r:
+                        _LOGGER.debug("DEO: Landed on: %s (status %s)", str(r.url)[:80], r.status)
+                        text = await r.text()
+                        _LOGGER.debug("DEO: Page size: %d chars", len(text))
+
+                        all_token_matches = re.findall(r'token=([^&\s"\'<>]{10,})', text)
+                        _LOGGER.debug("DEO: Found %d token patterns in HTML", len(all_token_matches))
+
+                        for token in all_token_matches:
+                            all_tokens_found.append((len(token), token[:30]))
+                            if len(token) >= MIN_TOKEN_LENGTH:
+                                _LOGGER.info("DEO: Found valid token (len=%d)", len(token))
+                                return token
+
+                        if not all_token_matches:
+                            _LOGGER.debug("DEO: No token patterns found on page")
+
+                except aiohttp.ClientError as e:
+                    _LOGGER.error("DEO: Failed to get %s: %s", page, e)
+                    continue
+
+        finally:
+            await session.close()
+
         if all_tokens_found:
-            _LOGGER.error(f"DEO: Tokens found but too short: {all_tokens_found}")
+            _LOGGER.error("DEO: Tokens found but too short: %s", all_tokens_found)
         else:
-            _LOGGER.error("DEO: No tokens found!")
-        
+            _LOGGER.error("DEO: No tokens found")
+
         return None
 
-    def get_consumption_data(self):
+    async def get_consumption_data(self):
         """Fetch data with session priming."""
-        if not self.logged_in and not self.login():
+        if not self.logged_in and not await self.login():
             _LOGGER.error("DEO: Login failed, cannot fetch data")
             return None
 
         try:
-            # Use configured token if available (preferred - stable)
             token = None
             if self.token and len(self.token.strip()) > 50:
                 token = self.token.strip()
-                _LOGGER.warning(f"DEO: Using configured token (len={len(token)})")
+                _LOGGER.debug("DEO: Using configured token (len=%d)", len(token))
             else:
-                # Try to discover token
-                _LOGGER.warning("DEO: No valid config token, attempting discovery...")
-                token = self.get_token()
-            
+                _LOGGER.debug("DEO: No valid config token, attempting discovery...")
+                token = await self.get_token()
+
             if not token:
                 _LOGGER.error("DEO: No token available! Please provide the long token in config.")
                 return None
-            
-            token_preview = token[:30] if len(token) > 30 else token
-            _LOGGER.warning(f"DEO: Using token: {token_preview}...")
-            
-            if self.pod:
-                prime_url = f"{self.base_url}/pages/informatiiContract?pod={self.pod}"
-                _LOGGER.warning(f"DEO: Priming session with POD page...")
-                self.session.get(prime_url)
 
-            encoded_token = quote(token, safe='')
-            
-            pages_to_try = [
-                f"{self.base_url}/pages/istoricIndecsi?token={encoded_token}",
-            ]
-            
-            headers = {
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Referer": f"{self.base_url}/pages/dashboard"
-            }
-            
-            r = None
-            for page_url in pages_to_try:
-                _LOGGER.warning(f"DEO: Fetching history page...")
-                try:
-                    r = self.session.get(page_url, headers=headers)
-                    _LOGGER.warning(f"DEO: Got status: {r.status_code}")
-                    if r.status_code == 200:
-                        break
-                    _LOGGER.error(f"DEO: Page returned {r.status_code}")
-                except Exception as req_err:
-                    _LOGGER.error(f"DEO: Request failed: {req_err}")
-            
-            if not r or r.status_code != 200:
-                _LOGGER.error(f"DEO: History page failed")
-                return None
+            _LOGGER.debug("DEO: Using token: %s...", token[:30])
 
-            data_match = re.search(r'(?:let|var)\s+data\s*=\s*(\[.*?\]);', r.text, re.DOTALL)
-            if not data_match:
-                _LOGGER.error("DEO: No 'data' variable found in page")
-                _LOGGER.warning(f"DEO: Page preview: {r.text[:300]}")
-                return None
-            
+            session = await self._get_session()
             try:
-                return json.loads(data_match.group(1))
-            except json.JSONDecodeError:
-                return json.loads(data_match.group(1).replace('\\/', '/'))
+                if self.pod:
+                    prime_url = f"{self.base_url}/pages/informatiiContract?pod={self.pod}"
+                    _LOGGER.debug("DEO: Priming session with POD page...")
+                    await session.get(prime_url)
 
+                encoded_token = quote(token, safe="")
+                history_url = f"{self.base_url}/pages/istoricIndecsi?token={encoded_token}"
+
+                headers = {
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Referer": f"{self.base_url}/pages/dashboard",
+                }
+
+                _LOGGER.debug("DEO: Fetching history page...")
+                async with session.get(history_url, headers=headers) as r:
+                    _LOGGER.debug("DEO: Got status: %s", r.status)
+                    if r.status != 200:
+                        _LOGGER.error("DEO: History page returned %s", r.status)
+                        return None
+                    text = await r.text()
+
+                data_match = re.search(r'(?:let|var)\s+data\s*=\s*(\[.*?\]);', text, re.DOTALL)
+                if not data_match:
+                    _LOGGER.error("DEO: No 'data' variable found in page")
+                    return None
+
+                try:
+                    return json.loads(data_match.group(1))
+                except json.JSONDecodeError:
+                    return json.loads(data_match.group(1).replace("\\/", "/"))
+
+            finally:
+                await session.close()
+
+        except aiohttp.ClientError as e:
+            _LOGGER.error("DEO: Data fetch network error: %s", e)
+            return None
+        except asyncio.TimeoutError:
+            _LOGGER.error("DEO: Data fetch timed out")
+            return None
         except Exception as e:
-            _LOGGER.exception(f"DEO: Data fetch error: {e}")
+            _LOGGER.exception("DEO: Data fetch error: %s", e)
             return None

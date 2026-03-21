@@ -13,9 +13,10 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Distribuție Oltenia from a config entry."""
-    
+
     email = entry.data[CONF_EMAIL]
     password = entry.data[CONF_PASSWORD]
     token = entry.data.get(CONF_TOKEN)
@@ -23,22 +24,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     portal = DEOPortal(email, password, token, pod)
 
-    # Coordinator to poll data
     async def async_update_data():
         """Fetch data from API."""
-        _LOGGER.warning("DEO Coordinator: Starting data refresh...")
-        data = await hass.async_add_executor_job(portal.get_consumption_data)
+        _LOGGER.debug("DEO Coordinator: Starting data refresh...")
+        data = await portal.get_consumption_data()
+
         if not data:
-             # Try re-login once if failed
-             _LOGGER.warning("DEO Coordinator: First attempt failed, retrying with re-login...")
-             await hass.async_add_executor_job(portal.login)
-             data = await hass.async_add_executor_job(portal.get_consumption_data)
-        
+            # Try re-login once if failed
+            _LOGGER.warning("DEO Coordinator: First attempt failed, retrying with re-login...")
+            await portal.login()
+            data = await portal.get_consumption_data()
+
         if not data:
             _LOGGER.error("DEO Coordinator: Failed to fetch data after retry!")
             raise UpdateFailed("Failed to fetch consumption data")
-        
-        _LOGGER.warning(f"DEO Coordinator: Successfully fetched {len(data)} records")
+
+        _LOGGER.info("DEO Coordinator: Successfully fetched %d records", len(data))
         return data
 
     coordinator = DataUpdateCoordinator(
@@ -46,7 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER,
         name=DOMAIN,
         update_method=async_update_data,
-        update_interval=timedelta(hours=1),  # Refresh every 1 hour
+        update_interval=timedelta(hours=6),
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -57,6 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""

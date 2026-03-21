@@ -13,6 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .deo import parse_european_number
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -116,15 +117,8 @@ class DEOSensor(CoordinatorEntity, SensorEntity):
         return date_str
     
     def _parse_consumption(self, consumption_str):
-        """Parse European format consumption to float (e.g., 1.218,001 -> 1218.001)."""
-        if not consumption_str:
-            return None
-        try:
-            # Remove thousand separators (.) and replace decimal comma with dot
-            cleaned = str(consumption_str).replace('.', '').replace(',', '.')
-            return float(cleaned)
-        except ValueError:
-            return consumption_str
+        """Parse European format consumption to float."""
+        return parse_european_number(consumption_str)
 
     def _find_my_data(self):
         """Find the data dict correspondng to this sensor in the list."""
@@ -138,15 +132,9 @@ class DEOSensor(CoordinatorEntity, SensorEntity):
         """Get the latest index value."""
         data = self._find_my_data()
         if data:
-            # MRINDEX is likely the total index
             idx = data.get("MRINDEX")
             if idx:
-                try:
-                    # Clean and parse numeric value
-                    cleaned = str(idx).replace('.', '').replace(',', '.') if isinstance(idx, str) and ',' in idx else idx
-                    return float(cleaned)
-                except (ValueError, TypeError):
-                    return None
+                return parse_european_number(idx)
         return None
 
     def _update_from_data(self):
