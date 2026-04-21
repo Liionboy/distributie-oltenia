@@ -13,6 +13,11 @@ class DistributieOlteniaCard extends HTMLElement {
 
   _render() {
     if (!this._hass) return;
+    const fmt = (v) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return v ?? "-";
+      return new Intl.NumberFormat("ro-RO", { maximumFractionDigits: 3 }).format(n);
+    };
     const sensors = Object.entries(this._hass.states || {})
       .filter(([id]) => id.startsWith("sensor.deo_"))
       .map(([id, st]) => ({
@@ -21,20 +26,25 @@ class DistributieOlteniaCard extends HTMLElement {
         value: st.state,
         unit: st.attributes?.unit_of_measurement || "",
         consumption: st.attributes?.consumption,
+        returned: st.attributes?.returned,
         date: st.attributes?.reading_date,
+        register: st.attributes?.register_code,
       }));
 
     this.shadowRoot.innerHTML = `
       <ha-card>
         <div class="wrap">
           <div class="title">${this._config.title}</div>
-          ${sensors.length ? sensors.map((s) => `
+          ${sensors.length ? sensors.map((s) => {
+            const periodVal = s.consumption ?? s.returned;
+            const periodLabel = s.register === "2.8.0" ? "Injectat perioadă" : "Consum perioadă";
+            return `
             <div class="row">
               <div class="name">${s.name}</div>
-              <div class="val">${s.value} ${s.unit}</div>
-              <div class="meta">Consum: ${s.consumption ?? "-"} · Citire: ${s.date ?? "-"}</div>
+              <div class="val">${periodLabel}: ${fmt(periodVal)} ${s.unit || "kWh"}</div>
+              <div class="meta">Index: ${fmt(s.value)} ${s.unit || "kWh"} · Citire: ${s.date ?? "-"}</div>
             </div>
-          `).join("") : `<div class="empty">Nu există senzori DEO</div>`}
+          `;}).join("") : `<div class="empty">Nu există senzori DEO</div>`}
         </div>
       </ha-card>
       <style>
