@@ -10,6 +10,6 @@
         "beautifulsoup4>=4.0.0"
     ],
     "iot_class": "cloud_polling",
-    "version": "1.2.0"
+    "version": "1.2.1"
 }
 

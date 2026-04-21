@@ -9,6 +9,9 @@ Integrare custom pentru Home Assistant care permite monitorizarea consumului de 
 
 Card pentru integrare este aici: https://github.com/Liionboy/distributie-oltenia-card
 
+Card inclus în integrare (v1): `custom_components/distributie_oltenia/www/distributie-oltenia-card.js`
+Resource Lovelace: `/local/distributie-oltenia-card.js` (după copiere în `/config/www/`)
+
 ---
 
 ## ✨ Funcționalități
